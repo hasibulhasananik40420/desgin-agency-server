@@ -16,7 +16,21 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://${process.env.USER_NAME}:${process.env.USER_PASS}@cluster0.mx55o.mongodb.net/?retryWrites=true&w=majority`
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
 
+function verifyJWT(req,res,next){
+  const authHeader  = req.headers.authorization 
+  if(!authHeader){
+    return res.status(401).send({message:'Unauthrized access'})
+  }
+  const token = authHeader.split(' ')[1]
 
+  jwt.verify(token, process.env.ACCESS_TOKEN, function(err, decoded) {
+    if(err){
+      return res.status(403).send({message:'Forbiden access'})
+    }
+   req.decoded = decoded
+   next()
+  });
+}
 
 async function run() {
 
@@ -25,6 +39,7 @@ async function run() {
       const serviceCollection = client.db("services").collection("service");
       const reviewCollection = client.db("services").collection("review");
       const orderCollection = client.db("services").collection("order");
+      const userCollection = client.db("services").collection("user");
       console.log('db connected');
 
      //add services
@@ -68,7 +83,7 @@ async function run() {
         })
 
         //find my orders
-        app.get('/myorder', async(req,res)=>{
+        app.get('/myorder',verifyJWT, async(req,res)=>{
           const email = req.query.email 
           const query = {email:email} 
           const cursor = orderCollection.find(query) 
@@ -85,7 +100,31 @@ async function run() {
           res.send(result)
 
         })
-    }
+
+
+        //save all users
+         app.put('/user/:email', async(req,res)=>{
+           const email = req.params.email 
+           const user = req.body 
+           const filter = {email: email} 
+           const options = { upsert: true };
+           const updateDoc = {
+            $set: user
+          }
+
+          const result = await userCollection.updateOne(filter, updateDoc, options);
+          const token = jwt.sign({email:email} , process.env.ACCESS_TOKEN ,  { expiresIn: '1h' })
+          res.send({result, token})
+
+         })
+   
+   //75.7
+   
+   
+        }
+
+
+
      finally {
   
     }
